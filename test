@@ -10,23 +10,33 @@ const { window } = new JSDOM(`
         </body>
     </html>
 `);
+
 const $ = require("jquery")(window);
 
+// The function being tested
 function showFormDialog() {
     $("#formDialog").data("kendoDialog").open();
 }
 
 describe("showFormDialog", () => {
     beforeEach(() => {
-        jest.spyOn($.fn, "data").mockImplementation(() => ({
-            open: jest.fn(),
-        }));
+        // Mock the .data() method to return an object with a mock `open` method
+        jest.spyOn($.fn, "data").mockImplementation((key) => {
+            if (key === "kendoDialog") {
+                return { open: jest.fn() }; // Return a mock object with an `open` method
+            }
+            return undefined;
+        });
     });
 
     it("should open the dialog", () => {
-        showFormDialog();
+        showFormDialog(); // Call the function being tested
 
+        // Ensure the `data` method was called with "kendoDialog"
         expect($.fn.data).toHaveBeenCalledWith("kendoDialog");
-        expect($.fn.data().open).toHaveBeenCalled();
+
+        // Ensure the `open` method was called on the dialog instance
+        const dialogInstance = $.fn.data.mock.results[0].value; // Get the returned object from the mock
+        expect(dialogInstance.open).toHaveBeenCalled();
     });
 });
