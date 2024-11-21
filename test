@@ -1,42 +1,39 @@
-const jsdom = require("jsdom");
-const { JSDOM } = jsdom;
+describe("saveInitialFormData", () => {
+    let mockFormElement;
 
-const { window } = new JSDOM(`
-    <html>
-        <body>
-            <div id="formDialog" data-kendo-dialog>
-                <div class="k-dialog"></div>
-            </div>
-        </body>
-    </html>
-`);
-
-const $ = require("jquery")(window);
-
-// The function being tested
-function showFormDialog() {
-    $("#formDialog").data("kendoDialog").open();
-}
-
-describe("showFormDialog", () => {
     beforeEach(() => {
-        // Mock the .data() method to return an object with a mock `open` method
-        jest.spyOn($.fn, "data").mockImplementation((key) => {
-            if (key === "kendoDialog") {
-                return { open: jest.fn() }; // Return a mock object with an `open` method
-            }
-            return undefined;
-        });
+        // Set up a mock form element
+        mockFormElement = `<form id="testFormDialog">
+            <input type="text" name="field1" value="value1" />
+            <input type="text" name="field2" value="value2" />
+        </form>`;
+        
+        // Add the form element to the DOM
+        document.body.innerHTML = mockFormElement;
     });
 
-    it("should open the dialog", () => {
-        showFormDialog(); // Call the function being tested
+    afterEach(() => {
+        // Clean up after each test
+        document.body.innerHTML = '';
+    });
 
-        // Ensure the `data` method was called with "kendoDialog"
-        expect($.fn.data).toHaveBeenCalledWith("kendoDialog");
+    it("should save the initial form data", () => {
+        // Mock jQuery serializeArray method to test the function
+        jest.spyOn($.fn, "serializeArray").mockImplementation(() => [
+            { name: "field1", value: "value1" },
+            { name: "field2", value: "value2" }
+        ]);
 
-        // Ensure the `open` method was called on the dialog instance
-        const dialogInstance = $.fn.data.mock.results[0].value; // Get the returned object from the mock
-        expect(dialogInstance.open).toHaveBeenCalled();
+        // Call the function being tested
+        saveInitialFormData();
+
+        // Check if the initial form data was saved correctly
+        expect(initialFormData).toEqual({
+            field1: "value1",
+            field2: "value2"
+        });
+
+        // Check if the hasUnsavedChanges flag is reset to false
+        expect(hasUnsavedChanges).toBe(false);
     });
 });
