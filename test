@@ -1,70 +1,32 @@
-const jsdom = require("jsdom");
-const { JSDOM } = jsdom;
+# Add Node.js for JavaScript testing
+RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g npm
 
-let $; // Declare jQuery globally so it can be reused in both tests
-let initialFormData = {};
+# Copy JavaScript files and install dependencies
+WORKDIR /src/js
+COPY ["src/js/package.json", "src/js/package-lock.json", "/src/js/"]
+RUN npm install
 
-// Set up jsdom environment before all tests
-beforeAll(() => {
-  const { window } = new JSDOM(`
-    <html>
-      <body>
-        <div id="formDialog" data-kendo-dialog>
-          <div class="k-dialog"></div>
-        </div>
-        <form id="testFormDialog">
-          <input name="field1" value="testValue1" />
-          <input name="field2" value="testValue2" />
-        </form>
-      </body>
-    </html>
-  `);
+# Run JavaScript tests with coverage
+RUN npm run test -- --coverage --coverageReporters="lcov"
 
-  // Attach jsdom to the global object for use with jQuery
-  global.window = window;
-  global.document = window.document;
-  global.navigator = { userAgent: "node.js" };
+# Run SonarQube scanner and upload coverage for both .NET and JavaScript
+RUN --mount=type=cache,target=/root/.sonar,sharing=private \
+    --mount=type=secret,id=sonarqube_token,env=SONARQUBE_TOKEN \
+    sonarscanner_begin.sh \
+    "OnBoard-app-analysis" \
+    "${BRANCH_NAME}" \
+    "${TARGET_BRANCH}" \
+    "${SONARQUBE_TOKEN}" \
+    "${SONAR_HOST_URL}" \
+    "${PR_ID}" \
+    '/app/testresults/coverage.opencover.xml' "${PR_SOURCE}" \
+    '/src/js/coverage/lcov.info'
 
-  // Initialize jQuery with jsdom's window
-  $ = require("jquery")(window);
-});
+RUN --mount=type=cache,target=/root/.sonar,sharing=private \
+    --mount=type=secret,id=sonarqube_token,env=SONARQUBE_TOKEN \
+    dotnet sonarscanner end /d:sonar.login="${SONARQUBE_TOKEN}"
 
-// Test for showFormDialog
-describe("showFormDialog", () => {
-  beforeEach(() => {
-    jest.spyOn($.fn, "data").mockImplementation(() => ({
-      open: jest.fn(),
-    }));
-  });
-
-  it("should open the dialog", () => {
-    showFormDialog();
-    expect($.fn.data).toHaveBeenCalledWith("kendoDialog");
-    expect($.fn.data().open).toHaveBeenCalled();
-  });
-});
-
-// Test for saveInitialFormData
-describe("saveInitialFormData", () => {
-  it("should save the initial form data", () => {
-    saveInitialFormData();
-    expect(initialFormData).toEqual({
-      field1: "testValue1",
-      field2: "testValue2",
-    });
-  });
-});
-
-// Function implementations
-function showFormDialog() {
-  $("#formDialog").data("kendoDialog").open();
-}
-
-function saveInitialFormData() {
-  initialFormData = $("#testFormDialog")
-    .serializeArray()
-    .reduce((data, field) => {
-      data[field.name] = field.value;
-      return data;
-    }, {});
-}
+FROM scratch AS results
+COPY --from=build /app/testresults /testresults
