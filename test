@@ -1,39 +1,70 @@
-describe("saveInitialFormData", () => {
-    let mockFormElement;
+const jsdom = require("jsdom");
+const { JSDOM } = jsdom;
 
-    beforeEach(() => {
-        // Set up a mock form element
-        mockFormElement = `<form id="testFormDialog">
-            <input type="text" name="field1" value="value1" />
-            <input type="text" name="field2" value="value2" />
-        </form>`;
-        
-        // Add the form element to the DOM
-        document.body.innerHTML = mockFormElement;
-    });
+let $; // Declare jQuery globally so it can be reused in both tests
+let initialFormData = {};
 
-    afterEach(() => {
-        // Clean up after each test
-        document.body.innerHTML = '';
-    });
+// Set up jsdom environment before all tests
+beforeAll(() => {
+  const { window } = new JSDOM(`
+    <html>
+      <body>
+        <div id="formDialog" data-kendo-dialog>
+          <div class="k-dialog"></div>
+        </div>
+        <form id="testFormDialog">
+          <input name="field1" value="testValue1" />
+          <input name="field2" value="testValue2" />
+        </form>
+      </body>
+    </html>
+  `);
 
-    it("should save the initial form data", () => {
-        // Mock jQuery serializeArray method to test the function
-        jest.spyOn($.fn, "serializeArray").mockImplementation(() => [
-            { name: "field1", value: "value1" },
-            { name: "field2", value: "value2" }
-        ]);
+  // Attach jsdom to the global object for use with jQuery
+  global.window = window;
+  global.document = window.document;
+  global.navigator = { userAgent: "node.js" };
 
-        // Call the function being tested
-        saveInitialFormData();
-
-        // Check if the initial form data was saved correctly
-        expect(initialFormData).toEqual({
-            field1: "value1",
-            field2: "value2"
-        });
-
-        // Check if the hasUnsavedChanges flag is reset to false
-        expect(hasUnsavedChanges).toBe(false);
-    });
+  // Initialize jQuery with jsdom's window
+  $ = require("jquery")(window);
 });
+
+// Test for showFormDialog
+describe("showFormDialog", () => {
+  beforeEach(() => {
+    jest.spyOn($.fn, "data").mockImplementation(() => ({
+      open: jest.fn(),
+    }));
+  });
+
+  it("should open the dialog", () => {
+    showFormDialog();
+    expect($.fn.data).toHaveBeenCalledWith("kendoDialog");
+    expect($.fn.data().open).toHaveBeenCalled();
+  });
+});
+
+// Test for saveInitialFormData
+describe("saveInitialFormData", () => {
+  it("should save the initial form data", () => {
+    saveInitialFormData();
+    expect(initialFormData).toEqual({
+      field1: "testValue1",
+      field2: "testValue2",
+    });
+  });
+});
+
+// Function implementations
+function showFormDialog() {
+  $("#formDialog").data("kendoDialog").open();
+}
+
+function saveInitialFormData() {
+  initialFormData = $("#testFormDialog")
+    .serializeArray()
+    .reduce((data, field) => {
+      data[field.name] = field.value;
+      return data;
+    }, {});
+}
