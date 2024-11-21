@@ -1,7 +1,6 @@
 const jsdom = require("jsdom");
 const { JSDOM } = jsdom;
 
-// Set up a DOM-like environment for jQuery
 const { window } = new JSDOM(`
     <html>
         <body>
@@ -11,36 +10,23 @@ const { window } = new JSDOM(`
         </body>
     </html>
 `);
+const $ = require("jquery")(window);
 
-// Attach jsdom to the global object
-global.window = window;
-global.document = window.document;
-global.navigator = { userAgent: "node.js" };
-const $ = require("jquery")(window); // Initialize jQuery with the jsdom window
-
-// Mock the `kendoDialog` to avoid issues
-$.fn.data = function () {
-    return {
-        open: jasmine.createSpy("open"), // Mock the open method
-    };
-};
-
-// The function being tested
 function showFormDialog() {
     $("#formDialog").data("kendoDialog").open();
 }
 
-// Jasmine test suite
-describe("showFormDialog", function () {
-    it("should open the dialog", function () {
-        // Call the function being tested
+describe("showFormDialog", () => {
+    beforeEach(() => {
+        jest.spyOn($.fn, "data").mockImplementation(() => ({
+            open: jest.fn(),
+        }));
+    });
+
+    it("should open the dialog", () => {
         showFormDialog();
 
-        // Verify that the `data` method was called with "kendoDialog"
-        expect($("#formDialog").data).toHaveBeenCalledWith("kendoDialog");
-
-        // Verify that the `open` method was called
-        const dialogInstance = $("#formDialog").data("kendoDialog");
-        expect(dialogInstance.open).toHaveBeenCalled();
+        expect($.fn.data).toHaveBeenCalledWith("kendoDialog");
+        expect($.fn.data().open).toHaveBeenCalled();
     });
 });
